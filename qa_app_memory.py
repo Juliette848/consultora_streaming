@@ -5,7 +5,11 @@ import itertools
 import streamlit as st
 from io import StringIO
 from langchain.vectorstores import FAISS
-from langchain.chains import RetrievalQA
+from langchain.chains import (
+    RetrievalQA,
+    ConversationalRetrievalChain,
+    ConversationChain,
+)
 from langchain.chat_models import ChatOpenAI
 from langchain.retrievers import SVMRetriever
 from langchain.chains import QAGenerationChain
@@ -13,6 +17,8 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.base import CallbackManager
+from langchain.chains.conversation.memory import ConversationSummaryMemory
+
 
 st.set_page_config(page_title="TOGAF con PDFs", page_icon=':book:')
 
@@ -43,6 +49,15 @@ def load_docs(files):
     return all_text
 
 @st.cache_resource
+def process_summary_memory_query(_llm, query: str, summary_memory):
+    conversation = ConversationChain(llm=_llm, memory=summary_memory, verbose=True)
+    result = conversation.predict(input=query)
+    return result
+
+def process_qa_query(query: str, llm, retriever):
+    qa = RetrievalQA.from_chain_type(llm= llm, retriever=retriever, chain_type="stuff", verbose=True)
+    return qa.run(query)
+
 def create_retriever(_embeddings, splits, retriever_type):
     if retriever_type == "BÚSQUEDA DE SIMILITUD":
         try:
@@ -67,26 +82,6 @@ def split_texts(text, chunk_size, overlap, split_method):
         st.stop()
 
     return splits
-
-@st.cache_data
-def generate_eval(text, N, chunk):
-    st.info("`Generando preguntas de muestra ...`")
-    n = len(text)
-    starting_indices = [random.randint(0, n-chunk) for _ in range(N)]
-    sub_sequences = [text[i:i+chunk] for i in starting_indices]
-    chain = QAGenerationChain.from_llm(ChatOpenAI(temperature=0.7))
-    eval_set = []
-    for i, b in enumerate(sub_sequences):
-        try:
-            qa = chain.run(b)
-            eval_set.append(qa)
-            st.write("Creando Pregunta:", i+1)
-        except:
-            st.warning('Error al generar la pregunta %s.' % str(i+1), icon="⚠️")
-    eval_set_full = list(itertools.chain.from_iterable(eval_set))
-    return eval_set_full
-
-# ...
 
 def main():
     foot = f"""
@@ -153,7 +148,10 @@ def main():
 
     retriever_type = st.sidebar.selectbox(
         "Elige Retriever", ["BÚSQUEDA DE SIMILITUD"])
-
+    
+    chat_type = st.sidebar.selectbox(
+        "Elige Retriever", ["Preguntas y Respuestas", "Chat con memoria"])
+    
     # Usar RecursiveCharacterTextSplitter como el divisor de texto predeterminado y único
     splitter_type = "RecursiveCharacterTextSplitter"
 
@@ -175,13 +173,11 @@ def main():
     if uploaded_files:
         if 'last_uploaded_files' not in st.session_state or st.session_state.last_uploaded_files != uploaded_files:
             st.session_state.last_uploaded_files = uploaded_files
-            if 'eval_set' in st.session_state:
-                del st.session_state['eval_set']
 
         loaded_text = load_docs(uploaded_files)
         st.write("Documentos cargados y procesados.")
 
-        splits = split_texts(loaded_text, chunk_size=1000,
+        splits = split_texts(loaded_text, chunk_size=1200,
                              overlap=0, split_method=splitter_type)
 
         num_chunks = len(splits)
@@ -191,36 +187,27 @@ def main():
             embeddings = OpenAIEmbeddings()
 
         retriever = create_retriever(embeddings, splits, retriever_type)
-
+        
+        
         callback_handler = StreamingStdOutCallbackHandler()
         callback_manager = CallbackManager([callback_handler])
-
-        chat_openai = ChatOpenAI(
+        
+        llm = ChatOpenAI(
             streaming=True, callback_manager=callback_manager, verbose=True, temperature=0)
-        qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
+        
+        summary_memory = None
+        summary_memory = ConversationSummaryMemory(llm=llm)
 
-        if 'eval_set' not in st.session_state:
-            num_eval_questions = 0
-            st.session_state.eval_set = generate_eval(
-                loaded_text, num_eval_questions, 3000)
-
-        for i, qa_pair in enumerate(st.session_state.eval_set):
-            st.sidebar.markdown(
-                f"""
-                <div class="css-card">
-                <span class="card-tag">Pregunta {i + 1}</span>
-                    <p style="font-size: 12px;">{qa_pair['question']}</p>
-                    <p style="font-size: 12px;">{qa_pair['answer']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
         st.write("Listo para responder preguntas.")
 
         user_question = st.text_input("Ingresa tu pregunta:")
         if user_question:
-            answer = qa.run(user_question)
-            st.write("Respuesta:", answer)
+            if chat_type == "Preguntas y Respuestas":
+                answer = process_qa_query(user_question, llm, retriever)
+                st.write("Respuesta:", answer)
+            elif chat_type == "Chat con memoria":
+                answer = process_summary_memory_query(_llm=llm, query=user_question, summary_memory=summary_memory)
+
 
 if __name__ == "__main__":
     main()
