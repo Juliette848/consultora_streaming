@@ -177,7 +177,7 @@ def main():
         loaded_text = load_docs(uploaded_files)
         st.write("Documentos cargados y procesados.")
 
-        splits = split_texts(loaded_text, chunk_size=1200,
+        splits = split_texts(loaded_text, chunk_size=1300,
                              overlap=0, split_method=splitter_type)
 
         num_chunks = len(splits)
