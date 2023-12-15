@@ -154,6 +154,10 @@ def main():
     
     # Usar RecursiveCharacterTextSplitter como el divisor de texto predeterminado y único
     splitter_type = "RecursiveCharacterTextSplitter"
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
 
     if 'openai_api_key' not in st.session_state:
         openai_api_key = st.text_input(
@@ -202,12 +206,17 @@ def main():
 
         user_question = st.text_input("Ingresa tu pregunta:")
         if user_question:
+            message_placeholder = st.empty()
+            
             if chat_type == "Preguntas y Respuestas":
                 answer = process_qa_query(user_question, llm, retriever)
                 st.write("Respuesta:", answer)
             elif chat_type == "Chat con memoria":
                 answer = process_summary_memory_query(_llm=llm, query=user_question, summary_memory=summary_memory)
-
+                st.write("Respuesta:", answer)
+            
+            message_placeholder.markdown(answer)
+        st.session_state.messages.append(answer)
 
 if __name__ == "__main__":
     main()

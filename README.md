@@ -18,4 +18,10 @@ Para iniciar la aplicación, ejecuta:
 streamlit run qa_app.py
 ```
 
+O la versión con memoria:
+
+```bash
+streamlit run qa_app_memory.py
+```
+
 

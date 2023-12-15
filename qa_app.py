@@ -74,7 +74,7 @@ def generate_eval(text, N, chunk):
     n = len(text)
     starting_indices = [random.randint(0, n-chunk) for _ in range(N)]
     sub_sequences = [text[i:i+chunk] for i in starting_indices]
-    chain = QAGenerationChain.from_llm(ChatOpenAI(temperature=0.7))
+    chain = QAGenerationChain.from_llm(ChatOpenAI(temperature=0.2))
     eval_set = []
     for i, b in enumerate(sub_sequences):
         try:
@@ -140,7 +140,7 @@ def main():
         f"""
         <div style="display: flex; align-items: center; margin-left: 0;">
             <h1 style="display: inline-block;">TOGAF PDF</h1>
-            <sup style="margin-left:5px;font-size:small; color: green;">beta v0.1</sup>
+            <sup style="margin-left:5px;font-size:small; color: green;">beta v0.4</sup>
         </div>
         """,
         unsafe_allow_html=True,
@@ -154,7 +154,12 @@ def main():
     retriever_type = st.sidebar.selectbox(
         "Elige Retriever", ["BÚSQUEDA DE SIMILITUD"])
 
-    # Usar RecursiveCharacterTextSplitter como el divisor de texto predeterminado y único
+    temperature = st.sidebar.slider(
+        "Temperatura", 0.0, 1.5, 0.8, step=0.1)
+    
+    chunk_size = st.sidebar.slider(
+        "Tamaño de Chunk (chunk_size)", 100, 2000, 1000, step=100)
+    
     splitter_type = "RecursiveCharacterTextSplitter"
 
     if 'openai_api_key' not in st.session_state:
@@ -171,6 +176,8 @@ def main():
 
     uploaded_files = st.file_uploader("Sube un documento PDF o TXT", type=[
                                       "pdf", "txt"], accept_multiple_files=True)
+    
+    
 
     if uploaded_files:
         if 'last_uploaded_files' not in st.session_state or st.session_state.last_uploaded_files != uploaded_files:
@@ -181,7 +188,7 @@ def main():
         loaded_text = load_docs(uploaded_files)
         st.write("Documentos cargados y procesados.")
 
-        splits = split_texts(loaded_text, chunk_size=1000,
+        splits = split_texts(loaded_text, chunk_size=chunk_size,
                              overlap=0, split_method=splitter_type)
 
         num_chunks = len(splits)
@@ -196,7 +203,7 @@ def main():
         callback_manager = CallbackManager([callback_handler])
 
         chat_openai = ChatOpenAI(
-            streaming=True, callback_manager=callback_manager, verbose=True, temperature=0)
+            streaming=True, callback_manager=callback_manager, verbose=True, temperature=temperature)
         qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
 
         if 'eval_set' not in st.session_state:
