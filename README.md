@@ -24,4 +24,7 @@ O la versión con memoria:
 streamlit run qa_app_memory.py
 ```
 
+Este proyecto está basado en [pdf-analyze-streamlit](https://github.com/starmorph/pdf-analyze-streamlit) de [starmorph](https://github.com/starmorph). 
+
+
 
