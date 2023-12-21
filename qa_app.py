@@ -17,6 +17,17 @@ from langchain.callbacks.base import CallbackManager
 st.set_page_config(page_title="TOGAF con PDFs", page_icon=':book:')
 
 @st.cache_data
+def load_togaf():
+    st.info("`Leyendo TOGAF ...`")
+    all_text = ""
+    pdf_reader = PyPDF2.PdfReader("togaf.pdf")
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text()
+    all_text += text
+    return all_text
+
+@st.cache_data
 def load_docs(files):
     st.info("`Leyendo TOGAF ...`")
     all_text = ""
@@ -161,6 +172,9 @@ def main():
         "Tamaño de Chunk (chunk_size)", 100, 2000, 1000, step=100)
     
     splitter_type = "RecursiveCharacterTextSplitter"
+    
+    load_files_option = st.sidebar.checkbox("Cargar archivos", value=False)
+
 
     if 'openai_api_key' not in st.session_state:
         openai_api_key = st.text_input(
@@ -174,20 +188,42 @@ def main():
     else:
         os.environ["OPENAI_API_KEY"] = st.session_state.openai_api_key
 
-    uploaded_files = st.file_uploader("Sube un documento PDF o TXT", type=[
+
+
+    if load_files_option:
+        uploaded_files = st.file_uploader("Sube un documento PDF o TXT", type=[
                                       "pdf", "txt"], accept_multiple_files=True)
-    
-    
+        if uploaded_files:
+            if 'last_uploaded_files' not in st.session_state or st.session_state.last_uploaded_files != uploaded_files:
+                st.session_state.last_uploaded_files = uploaded_files
 
-    if uploaded_files:
-        if 'last_uploaded_files' not in st.session_state or st.session_state.last_uploaded_files != uploaded_files:
-            st.session_state.last_uploaded_files = uploaded_files
-            if 'eval_set' in st.session_state:
-                del st.session_state['eval_set']
+            loaded_text = load_docs(uploaded_files)
+            st.write("Documentos cargados y procesados.")
 
-        loaded_text = load_docs(uploaded_files)
-        st.write("Documentos cargados y procesados.")
+            splits = split_texts(loaded_text, chunk_size=chunk_size,
+                                overlap=0, split_method=splitter_type)
 
+            num_chunks = len(splits)
+            st.write(f"Número de chunks: {num_chunks}")
+
+            if embedding_option == "OpenAI Embeddings":
+                embeddings = OpenAIEmbeddings()
+
+            retriever = create_retriever(embeddings, splits, retriever_type)
+
+            callback_handler = StreamingStdOutCallbackHandler()
+            callback_manager = CallbackManager([callback_handler])
+
+            chat_openai = ChatOpenAI(
+                streaming=True, callback_manager=callback_manager, verbose=True, temperature=temperature)
+            qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
+
+            user_question = st.text_input("Ingresa tu pregunta:")
+            if user_question:
+                answer = qa.run(user_question)
+                st.write("Respuesta:", answer)
+    else:
+        loaded_text = load_togaf()
         splits = split_texts(loaded_text, chunk_size=chunk_size,
                              overlap=0, split_method=splitter_type)
 
@@ -206,22 +242,6 @@ def main():
             streaming=True, callback_manager=callback_manager, verbose=True, temperature=temperature)
         qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
 
-        if 'eval_set' not in st.session_state:
-            num_eval_questions = 0
-            st.session_state.eval_set = generate_eval(
-                loaded_text, num_eval_questions, 3000)
-
-        for i, qa_pair in enumerate(st.session_state.eval_set):
-            st.sidebar.markdown(
-                f"""
-                <div class="css-card">
-                <span class="card-tag">Pregunta {i + 1}</span>
-                    <p style="font-size: 12px;">{qa_pair['question']}</p>
-                    <p style="font-size: 12px;">{qa_pair['answer']}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
         st.write("Listo para responder preguntas.")
 
         user_question = st.text_input("Ingresa tu pregunta:")
