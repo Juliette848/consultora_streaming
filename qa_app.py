@@ -14,13 +14,13 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.callbacks.base import CallbackManager
 
-st.set_page_config(page_title="TOGAF con PDFs", page_icon=':book:')
+st.set_page_config(page_title="Consultora Streaming", page_icon=':💁‍♀️:')
 
 @st.cache_data
 def load_togaf():
-    st.info("`Leyendo TOGAF ...`")
+    st.success("`Leyendo sobre el negocio y tecnología de video streaming ✨...`")
     all_text = ""
-    pdf_reader = PyPDF2.PdfReader("togaf.pdf")
+    pdf_reader = PyPDF2.PdfReader("streaming.pdf")
     text = ""
     for page in pdf_reader.pages:
         text += page.extract_text()
@@ -29,14 +29,14 @@ def load_togaf():
 
 @st.cache_data
 def load_docs(files):
-    st.info("`Leyendo TOGAF ...`")
+    st.success("`Leyendo sobre el negocio y tecnología de video streaming ✨...`")
     all_text = ""
-    pdf_reader = PyPDF2.PdfReader("togaf.pdf")
+    pdf_reader = PyPDF2.PdfReader("streaming.pdf")
     text = ""
     for page in pdf_reader.pages:
         text += page.extract_text()
     all_text += text
-    st.info("`Leyendo documento ...`")
+    st.success("`Leyendo documento 🔎...`")
     for file_path in files:
         file_extension = os.path.splitext(file_path.name)[1]
         if file_extension == ".pdf":
@@ -67,7 +67,7 @@ def create_retriever(_embeddings, splits, retriever_type):
 
 @st.cache_resource
 def split_texts(text, chunk_size, overlap, split_method):
-    st.info("`Dividiendo documento ...`")
+    st.success("`Dividiendo documento ...`")
     split_method = "RecursiveTextSplitter"
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size, chunk_overlap=overlap)
@@ -80,58 +80,27 @@ def split_texts(text, chunk_size, overlap, split_method):
     return splits
 
 def main():
-    foot = f"""
-    <div style="
-        position: fixed;
-        bottom: 0;
-        left: 30%;
-        right: 0;
-        width: 50%;
-        padding: 0px 0px;
-        text-align: center;
-    ">
-    """
-    st.markdown(foot, unsafe_allow_html=True)
+
 
     # Agregar CSS personalizado
     st.markdown(
         """
         <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        .css-card {
-            border-radius: 0px;
-            padding: 30px 10px 10px 10px;
-            background-color: #f8f9fa;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 10px;
-            font-family: "IBM Plex Sans", sans-serif;
+        body {
+            background-color: #CD5C5C;
         }
-        .card-tag {
-            border-radius: 0px;
-            padding: 1px 5px 1px 5px;
-            margin-bottom: 10px;
-            position: absolute;
-            left: 0px;
-            top: 0px;
-            font-size: 0.6rem;
-            font-family: "IBM Plex Sans", sans-serif;
-            color: white;
-            background-color: green;
-        }
-        .css-zt5igj {left:0;}
-        span.css-10trblm {margin-left:0;}
-        div.css-1kyxreq {margin-top: -40px;}
+        
         </style>
         """,
         unsafe_allow_html=True,
     )   
 
+    st.sidebar.image("images/streaming.jpg")
+
     st.write(
         f"""
         <div style="display: flex; align-items: center; margin-left: 0;">
-            <h1 style="display: inline-block;">TOGAF PDF</h1>
-            <sup style="margin-left:5px;font-size:small; color: green;">beta v0.4</sup>
+            <h1 style="display: inline-block;">CONSULTORA STREAMING 💻</h1>
         </div>
         """,
         unsafe_allow_html=True,
@@ -145,11 +114,10 @@ def main():
     retriever_type = st.sidebar.selectbox(
         "Elige Retriever", ["BÚSQUEDA DE SIMILITUD"])
 
-    temperature = st.sidebar.slider(
-        "Temperatura", 0.0, 1.5, 0.8, step=0.1)
-    
+
     chunk_size = st.sidebar.slider(
         "Tamaño de Chunk (chunk_size)", 100, 2000, 1000, step=100)
+
     
     splitter_type = "RecursiveCharacterTextSplitter"
     
@@ -193,7 +161,7 @@ def main():
             callback_manager = CallbackManager([callback_handler])
 
             chat_openai = ChatOpenAI(
-                streaming=True, callback_manager=callback_manager, verbose=True, temperature=temperature)
+                streaming=True, callback_manager=callback_manager, verbose=True)
             qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
 
             user_question = st.text_input("Ingresa tu pregunta:")
@@ -217,7 +185,7 @@ def main():
         callback_manager = CallbackManager([callback_handler])
 
         chat_openai = ChatOpenAI(
-            streaming=True, callback_manager=callback_manager, verbose=True, temperature=temperature)
+            streaming=True, callback_manager=callback_manager, verbose=True)
         qa = RetrievalQA.from_chain_type(llm=chat_openai, retriever=retriever, chain_type="stuff", verbose=True)
 
         st.write("Listo para responder preguntas.")
